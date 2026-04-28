@@ -105,7 +105,10 @@
                                       SelectedValue="{Binding SelectedDeviceIndex}"
                                       DisplayMemberPath="name"
                                       Background="#333337" Foreground="#d4d4d4"
-                                      Padding="8,5"/>
+                                      Padding="8,5"
+                                      SelectionChanged="ComboBox_SelectionChanged"/>
+                            <TextBlock Text="💡 Для записи голоса других людей из наушников выберите устройство с префиксом 🔊 Loopback" 
+                                       Foreground="#888888" FontSize="12" Margin="0,5,0,0" TextWrapping="Wrap"/>
                         </StackPanel>
 
                         <!-- Кнопки записи -->

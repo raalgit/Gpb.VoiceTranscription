@@ -73,5 +73,14 @@ namespace Gpb.VoiceTranscription
                 }
             }
         }
+
+        private void ComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (sender is ComboBox comboBox && comboBox.SelectedItem is ValueTuple<int, string, bool, string?> device)
+            {
+                _viewModel.GetType().GetProperty(nameof(MainViewModel.SelectedLoopbackDeviceId))
+                    ?.SetValue(_viewModel, device.deviceId);
+            }
+        }
     }
 }

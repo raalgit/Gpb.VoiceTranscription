@@ -1,7 +1,10 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Gpb.VoiceTranscription.Services;
+using NAudio.CoreAudioApi;
+using NAudio.Wave;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -23,7 +26,8 @@ namespace Gpb.VoiceTranscription.ViewModels
         [ObservableProperty] private bool _autoConvertAudio = true; // ✅ По умолчанию включено
         [ObservableProperty] private bool _isRecording;
         [ObservableProperty] private int _selectedDeviceIndex;
-        [ObservableProperty] private (int index, string name, bool isLoopback)[] _availableDevices = Array.Empty<(int, string, bool)>();
+        [ObservableProperty] private string? _selectedLoopbackDeviceId;
+        [ObservableProperty] private (int index, string name, bool isLoopback, string? deviceId)[] _availableDevices = Array.Empty<(int, string, bool, string?)>();
 
         private bool HasResult => !string.IsNullOrEmpty(TranscriptionResult);
 
@@ -39,12 +43,56 @@ namespace Gpb.VoiceTranscription.ViewModels
             _recordingService.ErrorOccurred += msg => 
                 Application.Current.Dispatcher.Invoke(() => StatusMessage = $"❌ {msg}");
 
-            // Загрузка списка устройств
-            AvailableDevices = AudioRecordingService.GetAvailableDevices();
+            // Загрузка списка устройств с ID
+            AvailableDevices = GetAvailableDevicesWithIds();
             if (AvailableDevices.Length > 0)
+            {
                 SelectedDeviceIndex = AvailableDevices[0].index;
+                SelectedLoopbackDeviceId = AvailableDevices[0].deviceId;
+            }
 
             _ = InitializeAsync();
+        }
+
+        /// <summary>
+        /// Получить список устройств с их ID для Loopback
+        /// </summary>
+        private static (int index, string name, bool isLoopback, string? deviceId)[] GetAvailableDevicesWithIds()
+        {
+            var devices = new List<(int, string, bool, string?)>();
+
+            // Микрофоны (WaveIn devices)
+            for (int i = 0; i < WaveIn.DeviceCount; i++)
+            {
+                try
+                {
+                    var caps = WaveIn.GetCapabilities(i);
+                    devices.Add((i, $"🎤 {caps.ProductName}", false, null));
+                }
+                catch
+                {
+                    // Пропускаем недоступные устройства
+                }
+            }
+
+            // Добавляем опции для записи системного звука (Loopback) - каждое устройство воспроизведения
+            try
+            {
+                using var enumerator = new MMDeviceEnumerator();
+                var renderDevices = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+                
+                foreach (var device in renderDevices)
+                {
+                    devices.Add((-100, $"🔊 Loopback: {device.FriendlyName}", true, device.ID));
+                }
+            }
+            catch
+            {
+                // Если не удалось получить устройства, добавляем общую опцию
+                devices.Add((-100, "🔊 Системный звук (Loopback)", true, null));
+            }
+
+            return devices.ToArray();
         }
 
         private async Task InitializeAsync()
@@ -168,7 +216,7 @@ namespace Gpb.VoiceTranscription.ViewModels
                 bool useLoopback = SelectedDeviceIndex == -100;
                 int deviceIndex = useLoopback ? 0 : SelectedDeviceIndex;
                 
-                await _recordingService.StartRecordingAsync(deviceIndex, useLoopback);
+                await _recordingService.StartRecordingAsync(deviceIndex, useLoopback, SelectedLoopbackDeviceId);
             }
             catch (Exception ex)
             {

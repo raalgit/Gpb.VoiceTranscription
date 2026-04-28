@@ -3,6 +3,7 @@ using NAudio.Wave;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Gpb.VoiceTranscription.Services
@@ -28,7 +29,8 @@ namespace Gpb.VoiceTranscription.Services
         /// </summary>
         /// <param name="deviceIndex">Индекс устройства (-1 для устройства по умолчанию)</param>
         /// <param name="useLoopback">Если true, записывать системный звук (наушники/динамики) через WASAPI Loopback</param>
-        public async Task StartRecordingAsync(int deviceIndex = -1, bool useLoopback = false)
+        /// <param name="loopbackDeviceId">ID устройства воспроизведения для Loopback (null для устройства по умолчанию)</param>
+        public async Task StartRecordingAsync(int deviceIndex = -1, bool useLoopback = false, string? loopbackDeviceId = null)
         {
             if (_isRecording)
                 throw new InvalidOperationException("Запись уже идёт");
@@ -46,7 +48,8 @@ namespace Gpb.VoiceTranscription.Services
                         if (useLoopback)
                         {
                             // Запись системного звука через WASAPI Loopback
-                            _waveIn = new WasapiCapture()
+                            var captureDevice = GetLoopbackDevice(loopbackDeviceId);
+                            _waveIn = new WasapiLoopbackCapture(captureDevice)
                             {
                                 WaveFormat = waveFormat
                             };
@@ -78,6 +81,30 @@ namespace Gpb.VoiceTranscription.Services
                     }
                 }
             });
+        }
+
+        /// <summary>
+        /// Получить устройство Loopback для записи системного звука
+        /// </summary>
+        private MMDevice GetLoopbackDevice(string? deviceId = null)
+        {
+            using var enumerator = new MMDeviceEnumerator();
+            
+            if (!string.IsNullOrEmpty(deviceId))
+            {
+                // Попытка найти устройство по ID
+                try
+                {
+                    return enumerator.GetDevice(deviceId);
+                }
+                catch
+                {
+                    // Если не найдено, используем устройство по умолчанию
+                }
+            }
+            
+            // Устройство воспроизведения по умолчанию
+            return enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
         }
 
         /// <summary>
@@ -133,8 +160,9 @@ namespace Gpb.VoiceTranscription.Services
         }
 
         /// <summary>
-        /// Получить список доступных устройств записи
+        /// Получить список доступных устройств записи (устаревший метод, используется только для обратной совместимости)
         /// </summary>
+        [Obsolete("Используйте GetAvailableDevicesWithIds() в MainViewModel")]
         public static (int index, string name, bool isLoopback)[] GetAvailableDevices()
         {
             var devices = new List<(int, string, bool)>();
@@ -153,8 +181,22 @@ namespace Gpb.VoiceTranscription.Services
                 }
             }
 
-            // Добавляем опцию для записи системного звука (Loopback)
-            devices.Add((-100, "🔊 Системный звук (Loopback)", true));
+            // Добавляем опции для записи системного звука (Loopback) - каждое устройство воспроизведения
+            try
+            {
+                using var enumerator = new MMDeviceEnumerator();
+                var renderDevices = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+                
+                foreach (var device in renderDevices)
+                {
+                    devices.Add((-100, $"🔊 Loopback: {device.FriendlyName}", true));
+                }
+            }
+            catch
+            {
+                // Если не удалось получить устройства, добавляем общую опцию
+                devices.Add((-100, "🔊 Системный звук (Loopback)", true));
+            }
 
             return devices.ToArray();
         }
