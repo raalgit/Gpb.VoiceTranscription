@@ -27,7 +27,7 @@ namespace Gpb.VoiceTranscription.ViewModels
         [ObservableProperty] private bool _isRecording;
         [ObservableProperty] private int _selectedDeviceIndex;
         [ObservableProperty] private string? _selectedLoopbackDeviceId;
-        [ObservableProperty] private (int index, string name, bool isLoopback, string? deviceId)[] _availableDevices = Array.Empty<(int, string, bool, string?)>();
+        [ObservableProperty] private (int index, string name, bool isLoopback, string? deviceId)[] _availableDevices = [];
 
         private bool HasResult => !string.IsNullOrEmpty(TranscriptionResult);
 

@@ -79,7 +79,7 @@ namespace Gpb.VoiceTranscription
             if (sender is ComboBox comboBox && comboBox.SelectedItem is ValueTuple<int, string, bool, string?> device)
             {
                 _viewModel.GetType().GetProperty(nameof(MainViewModel.SelectedLoopbackDeviceId))
-                    ?.SetValue(_viewModel, device.deviceId);
+                    ?.SetValue(_viewModel, device.Item2);
             }
         }
     }
