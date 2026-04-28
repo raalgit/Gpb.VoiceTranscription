@@ -46,7 +46,7 @@ namespace Gpb.VoiceTranscription.Services
                         if (useLoopback)
                         {
                             // Запись системного звука через WASAPI Loopback
-                            _waveIn = new WasapiCapture(useLoopback: true)
+                            _waveIn = new WasapiCapture()
                             {
                                 WaveFormat = waveFormat
                             };
