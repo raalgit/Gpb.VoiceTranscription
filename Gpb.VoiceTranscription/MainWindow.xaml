@@ -210,7 +210,7 @@
         <StackPanel Grid.Row="0" Margin="0,0,0,20">
             <TextBlock Text="🎙️ Транскрибация аудио" 
                        FontSize="24" FontWeight="Bold" Margin="0,0,0,5"/>
-            <TextBlock Text="Whisper.net • WAV → Text" 
+            <TextBlock Text="Whisper.net • WAV/MP3/MP4 → Text" 
                        FontSize="14" Foreground="#888888"/>
         </StackPanel>
 
@@ -225,7 +225,7 @@
                 </Grid.ColumnDefinitions>
                 
                 <StackPanel Orientation="Vertical" Grid.Column="1">
-                    <TextBlock Text="📁 Выберите WAV-файл или запишите новый" FontWeight="SemiBold" Foreground="#d4d4d4" Margin="0,0,0,10"/>
+                    <TextBlock Text="📁 Выберите аудиофайл (WAV, MP3, MP4) или запишите новый" FontWeight="SemiBold" Foreground="#d4d4d4" Margin="0,0,0,10"/>
 
                     <!-- Выбор файла -->
                     <DockPanel LastChildFill="True" Margin="0,0,0,10">
@@ -238,7 +238,7 @@
                             CornerRadius="4" Padding="20" Background="#2d2d30"
                             AllowDrop="True" DragOver="Border_DragOver" Drop="Border_Drop"
                             Margin="0,0,0,15">
-                        <TextBlock Text="📥 Перетащите WAV-файл сюда" Foreground="#888888" TextAlignment="Center"/>
+                        <TextBlock Text="📥 Перетащите аудиофайл (WAV, MP3, MP4) сюда" Foreground="#888888" TextAlignment="Center"/>
                     </Border>
                 </StackPanel>
                 
