@@ -12,6 +12,7 @@ namespace Gpb.VoiceTranscription.ViewModels
     public partial class MainViewModel : ObservableObject
     {
         private readonly WhisperTranscriptionService _transcriptionService;
+        private readonly AudioRecordingService _recordingService;
         private CancellationTokenSource? _cts;
 
         [ObservableProperty] private string _statusMessage = "🟡 Ожидание...";
@@ -20,6 +21,9 @@ namespace Gpb.VoiceTranscription.ViewModels
         [ObservableProperty] private string _selectedFilePath = string.Empty;
         [ObservableProperty] private string _transcriptionResult = string.Empty;
         [ObservableProperty] private bool _autoConvertAudio = true; // ✅ По умолчанию включено
+        [ObservableProperty] private bool _isRecording;
+        [ObservableProperty] private int _selectedDeviceIndex;
+        [ObservableProperty] private (int index, string name, bool isLoopback)[] _availableDevices = Array.Empty<(int, string, bool)>();
 
         private bool HasResult => !string.IsNullOrEmpty(TranscriptionResult);
 
@@ -27,6 +31,18 @@ namespace Gpb.VoiceTranscription.ViewModels
         public MainViewModel(string modelPath)
         {
             _transcriptionService = new WhisperTranscriptionService(modelPath);
+            _recordingService = new AudioRecordingService();
+
+            // Подписка на события сервиса записи
+            _recordingService.RecordingStateChanged += isRecording => 
+                Application.Current.Dispatcher.Invoke(() => IsRecording = isRecording);
+            _recordingService.ErrorOccurred += msg => 
+                Application.Current.Dispatcher.Invoke(() => StatusMessage = $"❌ {msg}");
+
+            // Загрузка списка устройств
+            AvailableDevices = AudioRecordingService.GetAvailableDevices();
+            if (AvailableDevices.Length > 0)
+                SelectedDeviceIndex = AvailableDevices[0].index;
 
             _ = InitializeAsync();
         }
@@ -135,9 +151,65 @@ namespace Gpb.VoiceTranscription.ViewModels
                 File.WriteAllText(dialog.FileName, TranscriptionResult);
         }
 
+        // ✅ Команды для записи аудио
+        [RelayCommand]
+        private async Task StartRecordingAsync()
+        {
+            if (_recordingService.IsRecording)
+                return;
+
+            IsProcessing = true;
+            StatusMessage = "🔴 Запись...";
+            TranscriptionResult = string.Empty;
+
+            try
+            {
+                // Если выбрано устройство Loopback (индекс -100), используем useLoopback=true
+                bool useLoopback = SelectedDeviceIndex == -100;
+                int deviceIndex = useLoopback ? 0 : SelectedDeviceIndex;
+                
+                await _recordingService.StartRecordingAsync(deviceIndex, useLoopback);
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"❌ Ошибка записи: {ex.Message}";
+                IsProcessing = false;
+            }
+        }
+
+        [RelayCommand]
+        private async Task StopRecordingAsync()
+        {
+            if (!_recordingService.IsRecording)
+                return;
+
+            try
+            {
+                var recordedFilePath = await _recordingService.StopRecordingAsync();
+
+                if (!string.IsNullOrEmpty(recordedFilePath))
+                {
+                    SelectedFilePath = recordedFilePath;
+                    StatusMessage = "✅ Запись завершена. Файл готов к транскрибации.";
+                    
+                    // Автоматически запускаем транскрибацию после записи
+                    await StartTranscriptionAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"❌ Ошибка остановки записи: {ex.Message}";
+            }
+            finally
+            {
+                IsProcessing = false;
+            }
+        }
+
         public void Dispose()
         {
             _transcriptionService?.Dispose();
+            _recordingService?.Dispose();
             _cts?.Dispose();
         }
     }

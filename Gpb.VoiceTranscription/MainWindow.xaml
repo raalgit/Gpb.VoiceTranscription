@@ -65,13 +65,14 @@
                        FontSize="14" Foreground="#888888"/>
         </StackPanel>
 
-        <!-- Область выбора файла -->
+        <!-- Область выбора файла и записи -->
         <Border Grid.Row="1" BorderBrush="#3e3e42" BorderThickness="1" 
                 CornerRadius="8" Padding="15" Margin="0,0,0,15"
                 Background="#252526">
             <StackPanel>
-                <TextBlock Text="📁 Выберите WAV-файл" FontWeight="SemiBold" Foreground="#d4d4d4" Margin="0,0,0,10"/>
+                <TextBlock Text="📁 Выберите WAV-файл или запишите новый" FontWeight="SemiBold" Foreground="#d4d4d4" Margin="0,0,0,10"/>
 
+                <!-- Выбор файла -->
                 <DockPanel LastChildFill="True" Margin="0,0,0,10">
                     <Button Content="🔍 Обзор..." Command="{Binding SelectFileCommand}"
                             Style="{StaticResource PrimaryButton}" 
@@ -84,9 +85,52 @@
                 <!-- Drag & Drop зона -->
                 <Border BorderBrush="#0078d4" BorderThickness="1" 
                         CornerRadius="4" Padding="20" Background="#2d2d30"
-                        AllowDrop="True" DragOver="Border_DragOver" Drop="Border_Drop">
+                        AllowDrop="True" DragOver="Border_DragOver" Drop="Border_Drop"
+                        Margin="0,0,0,15">
                     <TextBlock Text="📥 Перетащите WAV-файл сюда" 
                                Foreground="#888888" TextAlignment="Center"/>
+                </Border>
+
+                <!-- Секция записи аудио -->
+                <Border BorderBrush="#0078d4" BorderThickness="1" 
+                        CornerRadius="4" Padding="15" Background="#2d2d30">
+                    <StackPanel>
+                        <TextBlock Text="🎙️ Запись аудио" FontWeight="SemiBold" Foreground="#d4d4d4" Margin="0,0,0,10"/>
+                        
+                        <!-- Выбор устройства -->
+                        <StackPanel Margin="0,0,0,10">
+                            <TextBlock Text="Источник звука:" Foreground="#888888" Margin="0,0,0,5"/>
+                            <ComboBox ItemsSource="{Binding AvailableDevices}" 
+                                      SelectedValuePath="index"
+                                      SelectedValue="{Binding SelectedDeviceIndex}"
+                                      DisplayMemberPath="name"
+                                      Background="#333337" Foreground="#d4d4d4"
+                                      Padding="8,5"/>
+                        </StackPanel>
+
+                        <!-- Кнопки записи -->
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <Button Content="⏺️ Запись" 
+                                    Command="{Binding StartRecordingCommand}"
+                                    Style="{StaticResource PrimaryButton}" 
+                                    Background="#d43e3e"
+                                    Margin="0,0,10,0"
+                                    IsEnabled="{Binding IsRecording, Converter={StaticResource BoolToVis}, ConverterParameter=Inverse}"/>
+                            <Button Content="⏹️ Стоп" 
+                                    Command="{Binding StopRecordingCommand}"
+                                    Style="{StaticResource PrimaryButton}" 
+                                    Background="#3e8e3e"
+                                    IsEnabled="{Binding IsRecording}"/>
+                        </StackPanel>
+
+                        <!-- Индикатор записи -->
+                        <TextBlock Visibility="{Binding IsRecording, Converter={StaticResource BoolToVis}}"
+                                   Text="🔴 Идёт запись..." 
+                                   Foreground="#d43e3e" 
+                                   FontWeight="Bold"
+                                   TextAlignment="Center"
+                                   Margin="0,10,0,0"/>
+                    </StackPanel>
                 </Border>
             </StackPanel>
         </Border>
