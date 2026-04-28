@@ -1,4 +1,5 @@
-﻿using Gpb.VoiceTranscription.ViewModels;
+﻿using Gpb.VoiceTranscription.Models;
+using Gpb.VoiceTranscription.ViewModels;
 using System;
 using System.IO;
 using System.Linq;
@@ -76,10 +77,9 @@ namespace Gpb.VoiceTranscription
 
         private void ComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (sender is ComboBox comboBox && comboBox.SelectedItem is ValueTuple<int, string, bool, string?> device)
+            if (sender is ComboBox comboBox && comboBox.SelectedItem is AudioDeviceItem device)
             {
-                _viewModel.GetType().GetProperty(nameof(MainViewModel.SelectedLoopbackDeviceId))
-                    ?.SetValue(_viewModel, device.Item2);
+                _viewModel.SelectedLoopbackDeviceId = device.DeviceId;
             }
         }
     }

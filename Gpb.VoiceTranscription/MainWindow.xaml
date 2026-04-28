@@ -251,9 +251,9 @@
                         <StackPanel Margin="0,0,0,10">
                             <TextBlock Text="Источник звука:" Foreground="#888888" Margin="0,0,0,5"/>
                             <ComboBox ItemsSource="{Binding AvailableDevices}" 
-                                      SelectedValuePath="Item1"
+                                      SelectedValuePath="Index"
                                       SelectedValue="{Binding SelectedDeviceIndex}"
-                                      DisplayMemberPath="Item2"
+                                      DisplayMemberPath="Name"
                                       Background="#333337" Foreground="#d4d4d4"
                                       Padding="8,5"
                                       SelectionChanged="ComboBox_SelectionChanged"/>
