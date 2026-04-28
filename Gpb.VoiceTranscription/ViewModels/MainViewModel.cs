@@ -133,7 +133,9 @@ namespace Gpb.VoiceTranscription.ViewModels
         private void SelectFile()
         {
             var dialog = new Microsoft.Win32.OpenFileDialog
-            { Filter = "WAV файлы (*.wav)|*.wav|Все файлы|*.*" };
+            { 
+                Filter = "Аудио файлы (*.wav;*.mp3;*.mp4;*.m4a)|*.wav;*.mp3;*.mp4;*.m4a|WAV файлы (*.wav)|*.wav|MP3 файлы (*.mp3)|*.mp3|MP4 файлы (*.mp4)|*.mp4|M4A файлы (*.m4a)|*.m4a|Все файлы|*.*" 
+            };
             if (dialog.ShowDialog() == true)
                 SelectedFilePath = dialog.FileName;
         }
@@ -143,6 +145,15 @@ namespace Gpb.VoiceTranscription.ViewModels
         private async Task StartTranscriptionAsync()
         {
             if (string.IsNullOrEmpty(SelectedFilePath)) return;
+
+            // Проверка формата файла
+            if (!AudioConverter.IsSupportedAudioFormat(SelectedFilePath))
+            {
+                StatusMessage = "❌ Неподдерживаемый формат файла";
+                MessageBox.Show("Пожалуйста, выберите файл в формате WAV, MP3, MP4 или M4A", "Ошибка", 
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
 
             IsProcessing = true;
             _cts = new CancellationTokenSource();

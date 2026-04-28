@@ -61,15 +61,19 @@ namespace Gpb.VoiceTranscription
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
                 var files = (string[])e.Data.GetData(DataFormats.FileDrop);
-                var wavFile = files.FirstOrDefault(f => f.EndsWith(".wav", StringComparison.OrdinalIgnoreCase));
+                var audioFile = files.FirstOrDefault(f => 
+                    f.EndsWith(".wav", StringComparison.OrdinalIgnoreCase) ||
+                    f.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase) ||
+                    f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) ||
+                    f.EndsWith(".m4a", StringComparison.OrdinalIgnoreCase));
 
-                if (!string.IsNullOrEmpty(wavFile))
+                if (!string.IsNullOrEmpty(audioFile))
                 {
-                    _viewModel.SelectedFilePath = wavFile;
+                    _viewModel.SelectedFilePath = audioFile;
                 }
                 else
                 {
-                    MessageBox.Show("Пожалуйста, выберите файл в формате .wav", "Неверный формат",
+                    MessageBox.Show("Пожалуйста, выберите файл в формате .wav, .mp3, .mp4 или .m4a", "Неверный формат",
                         MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }

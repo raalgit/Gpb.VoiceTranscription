@@ -1,11 +1,22 @@
 ﻿using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
+using System;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace Gpb.VoiceTranscription.Services
 {
     public static class AudioConverter
     {
+        /// <summary>
+        /// Проверяет, является ли файл поддерживаемым аудиоформатом (wav, mp3, mp4)
+        /// </summary>
+        public static bool IsSupportedAudioFormat(string filePath)
+        {
+            var extension = Path.GetExtension(filePath).ToLowerInvariant();
+            return extension == ".wav" || extension == ".mp3" || extension == ".mp4" || extension == ".m4a";
+        }
+
         public static bool IsWhisperCompatible(string filePath)
         {
             try
@@ -20,11 +31,15 @@ namespace Gpb.VoiceTranscription.Services
             catch { return false; }
         }
 
+        /// <summary>
+        /// Конвертирует любой поддерживаемый аудиофайл (WAV, MP3, MP4) в формат Whisper (16kHz Mono WAV)
+        /// </summary>
         public static async Task ConvertToWhisperFormatAsync(string inputPath, string outputPath)
         {
             await Task.Run(() =>
             {
                 // 1. Декодируем входной файл в IEEE Float (32-bit)
+                // AudioFileReader автоматически декодирует MP3, MP4, WAV и другие форматы
                 using var reader = new AudioFileReader(inputPath);
                 ISampleProvider sampleProvider = reader;
 
