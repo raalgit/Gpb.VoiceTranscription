@@ -24,15 +24,14 @@ namespace Gpb.VoiceTranscription.ViewModels
         [ObservableProperty] private double _progressValue;
         [ObservableProperty] private bool _isProcessing;
         [ObservableProperty] private string _selectedFilePath = string.Empty;
-        [ObservableProperty] private string _transcriptionResult = string.Empty;
+        [ObservableProperty][NotifyPropertyChangedFor(nameof(HasResult))] private string _transcriptionResult = string.Empty;
         [ObservableProperty] private bool _autoConvertAudio = true; // ✅ По умолчанию включено
         [ObservableProperty] private bool _isRecording;
         [ObservableProperty] private int _selectedDeviceIndex;
         [ObservableProperty] private string? _selectedLoopbackDeviceId;
         [ObservableProperty] private List<AudioDeviceItem> _availableDevices = new();
 
-        private bool HasResult => !string.IsNullOrEmpty(TranscriptionResult);
-
+        public bool HasResult => !string.IsNullOrEmpty(TranscriptionResult);
 
         public MainViewModel(string modelPath)
         {
@@ -210,7 +209,7 @@ namespace Gpb.VoiceTranscription.ViewModels
         [RelayCommand(CanExecute = nameof(IsProcessing))]
         private void CancelTranscription() => _cts?.Cancel();
 
-        [RelayCommand(CanExecute = nameof(HasResult))]
+        [RelayCommand()]
         private void SaveResult()
         {
             var dialog = new Microsoft.Win32.SaveFileDialog

@@ -326,7 +326,7 @@
             <Button Content="⏹️ Отмена" Command="{Binding CancelCommand}"
             Background="#6e3e6e" Style="{StaticResource PrimaryButton}" Margin="0,0,10,0"/>
             <Button Content="💾 Сохранить .md" Command="{Binding SaveResultCommand}"
-            Background="#2d7d2d" Style="{StaticResource PrimaryButton}"/>
+            Background="#2d7d2d" Style="{StaticResource PrimaryButton}" IsEnabled="{Binding HasResult}"/>
         </StackPanel>
     </Grid>
 </Window>
