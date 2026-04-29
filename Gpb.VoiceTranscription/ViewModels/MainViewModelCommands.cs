@@ -133,9 +133,10 @@ namespace Gpb.VoiceTranscription.ViewModels
 
                 // Если выбрано устройство Loopback, используем useLoopback=true
                 bool useLoopback = selectedDevice?.IsLoopback == true;
-                int deviceIndex = useLoopback ? 0 : SelectedDeviceIndex;
+                bool isCombined = selectedDevice?.IsCombined == true;
+                int deviceIndex = (useLoopback || isCombined) ? 0 : SelectedDeviceIndex;
 
-                await _recordingService.StartRecordingAsync(deviceIndex, useLoopback, SelectedLoopbackDeviceId);
+                await _recordingService.StartRecordingAsync(deviceIndex, useLoopback, SelectedLoopbackDeviceId, isCombined);
             }
             catch (Exception ex)
             {
