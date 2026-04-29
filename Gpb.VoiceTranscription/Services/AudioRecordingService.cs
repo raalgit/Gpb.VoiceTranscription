@@ -1,9 +1,9 @@
+using Gpb.VoiceTranscription.Models;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Threading.Tasks;
 
 namespace Gpb.VoiceTranscription.Services
@@ -13,16 +13,89 @@ namespace Gpb.VoiceTranscription.Services
     /// </summary>
     public class AudioRecordingService : IDisposable
     {
+        #region Fields
+
         private IWaveIn? _waveIn;
         private WaveFileWriter? _writer;
         private string? _tempFilePath;
         private bool _isRecording;
         private readonly object _lock = new();
 
+        #endregion
+
+        #region Properties
+
         public bool IsRecording => _isRecording;
+
+        #endregion
+
+        #region Events
 
         public event Action<bool>? RecordingStateChanged;
         public event Action<string>? ErrorOccurred;
+
+        #endregion
+
+        #region Methods
+
+        /// <summary>
+        /// Получить список устройств с их ID для Loopback
+        /// </summary>
+        public List<AudioDeviceItem> GetAvailableDevicesWithIds()
+        {
+            var devices = new List<AudioDeviceItem>();
+
+            // Микрофоны (WaveIn devices)
+            for (int i = 0; i < WaveIn.DeviceCount; i++)
+            {
+                try
+                {
+                    var caps = WaveIn.GetCapabilities(i);
+                    devices.Add(new AudioDeviceItem
+                    {
+                        Index = i,
+                        Name = $"🎤 {caps.ProductName}",
+                        IsLoopback = false,
+                        DeviceId = null
+                    });
+                }
+                catch
+                {
+                    // Пропускаем недоступные устройства
+                }
+            }
+
+            // Добавляем опции для записи системного звука (Loopback) - каждое устройство воспроизведения
+            try
+            {
+                using var enumerator = new MMDeviceEnumerator();
+                var renderDevices = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+
+                foreach (var device in renderDevices)
+                {
+                    devices.Add(new AudioDeviceItem
+                    {
+                        Index = -100,
+                        Name = $"🔊 Loopback: {device.FriendlyName}",
+                        IsLoopback = true,
+                        DeviceId = device.ID
+                    });
+                }
+            }
+            catch
+            {
+                // Если не удалось получить устройства, добавляем общую опцию
+                devices.Add(new AudioDeviceItem
+                {
+                    Index = -100,
+                    Name = "🔊 Системный звук (Loopback)",
+                    IsLoopback = true,
+                    DeviceId = null
+                });
+            }
+
+            return devices;
+        }
 
         /// <summary>
         /// Начать запись с указанного устройства
@@ -35,52 +108,49 @@ namespace Gpb.VoiceTranscription.Services
             if (_isRecording)
                 throw new InvalidOperationException("Запись уже идёт");
 
-            await Task.Run(() =>
+            lock (_lock)
             {
-                lock (_lock)
+                try
                 {
-                    try
+                    _tempFilePath = Path.Combine(Path.GetTempPath(), $"recording_{Guid.NewGuid()}.wav");
+
+                    var waveFormat = new WaveFormat(16000, 16, 1); // 16kHz Mono для Whisper
+
+                    if (useLoopback)
                     {
-                        _tempFilePath = Path.Combine(Path.GetTempPath(), $"recording_{Guid.NewGuid()}.wav");
-
-                        var waveFormat = new WaveFormat(16000, 16, 1); // 16kHz Mono для Whisper
-
-                        if (useLoopback)
+                        // Запись системного звука через WASAPI Loopback
+                        var captureDevice = GetLoopbackDevice(loopbackDeviceId);
+                        _waveIn = new WasapiLoopbackCapture(captureDevice)
                         {
-                            // Запись системного звука через WASAPI Loopback
-                            var captureDevice = GetLoopbackDevice(loopbackDeviceId);
-                            _waveIn = new WasapiLoopbackCapture(captureDevice)
-                            {
-                                WaveFormat = waveFormat
-                            };
-                        }
-                        else
-                        {
-                            // Запись с микрофона
-                            _waveIn = new WaveInEvent
-                            {
-                                DeviceNumber = deviceIndex >= 0 ? deviceIndex : 0,
-                                WaveFormat = waveFormat
-                            };
-                        }
-
-                        _writer = new WaveFileWriter(_tempFilePath, _waveIn.WaveFormat);
-
-                        _waveIn.DataAvailable += OnDataAvailable;
-                        _waveIn.RecordingStopped += OnRecordingStopped;
-
-                        _waveIn.StartRecording();
-                        _isRecording = true;
-                        RecordingStateChanged?.Invoke(true);
+                            WaveFormat = waveFormat
+                        };
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        Cleanup();
-                        ErrorOccurred?.Invoke($"Ошибка начала записи: {ex.Message}");
-                        throw;
+                        // Запись с микрофона
+                        _waveIn = new WaveInEvent
+                        {
+                            DeviceNumber = deviceIndex >= 0 ? deviceIndex : 0,
+                            WaveFormat = waveFormat
+                        };
                     }
+
+                    _writer = new WaveFileWriter(_tempFilePath, _waveIn.WaveFormat);
+
+                    _waveIn.DataAvailable += OnDataAvailable;
+                    _waveIn.RecordingStopped += OnRecordingStopped;
+
+                    _waveIn.StartRecording();
+                    _isRecording = true;
+                    RecordingStateChanged?.Invoke(true);
                 }
-            });
+                catch (Exception ex)
+                {
+                    Cleanup();
+                    ErrorOccurred?.Invoke($"Ошибка начала записи: {ex.Message}");
+                    throw;
+                }
+            }
         }
 
         /// <summary>
@@ -115,22 +185,19 @@ namespace Gpb.VoiceTranscription.Services
             if (!_isRecording || _waveIn == null)
                 return null;
 
-            await Task.Run(() =>
+            lock (_lock)
             {
-                lock (_lock)
+                try
                 {
-                    try
-                    {
-                        _waveIn.StopRecording();
-                        _isRecording = false;
-                    }
-                    catch (Exception ex)
-                    {
-                        ErrorOccurred?.Invoke($"Ошибка остановки записи: {ex.Message}");
-                        throw;
-                    }
+                    _waveIn.StopRecording();
+                    _isRecording = false;
                 }
-            });
+                catch (Exception ex)
+                {
+                    ErrorOccurred?.Invoke($"Ошибка остановки записи: {ex.Message}");
+                    throw;
+                }
+            }
 
             // Ждём завершения обработки последних данных
             await Task.Delay(500);
@@ -159,46 +226,13 @@ namespace Gpb.VoiceTranscription.Services
             // Обработка окончания записи
         }
 
-        /// <summary>
-        /// Получить список доступных устройств записи (устаревший метод, используется только для обратной совместимости)
-        /// </summary>
-        [Obsolete("Используйте GetAvailableDevicesWithIds() в MainViewModel")]
-        public static (int index, string name, bool isLoopback)[] GetAvailableDevices()
+        #endregion
+
+        #region Dispose
+
+        public void Dispose()
         {
-            var devices = new List<(int, string, bool)>();
-
-            // Микрофоны (WaveIn devices)
-            for (int i = 0; i < WaveIn.DeviceCount; i++)
-            {
-                try
-                {
-                    var caps = WaveIn.GetCapabilities(i);
-                    devices.Add((i, $"🎤 {caps.ProductName}", false));
-                }
-                catch
-                {
-                    // Пропускаем недоступные устройства
-                }
-            }
-
-            // Добавляем опции для записи системного звука (Loopback) - каждое устройство воспроизведения
-            try
-            {
-                using var enumerator = new MMDeviceEnumerator();
-                var renderDevices = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
-                
-                foreach (var device in renderDevices)
-                {
-                    devices.Add((-100, $"🔊 Loopback: {device.FriendlyName}", true));
-                }
-            }
-            catch
-            {
-                // Если не удалось получить устройства, добавляем общую опцию
-                devices.Add((-100, "🔊 Системный звук (Loopback)", true));
-            }
-
-            return devices.ToArray();
+            Cleanup();
         }
 
         private void Cleanup()
@@ -229,9 +263,6 @@ namespace Gpb.VoiceTranscription.Services
             }
         }
 
-        public void Dispose()
-        {
-            Cleanup();
-        }
+        #endregion
     }
 }

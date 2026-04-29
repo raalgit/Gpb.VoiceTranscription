@@ -1,4 +1,5 @@
-﻿using Gpb.VoiceTranscription.Models;
+﻿using Gpb.VoiceTranscription.Helpers;
+using Gpb.VoiceTranscription.Models;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -6,19 +7,28 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Whisper.net;
-using Whisper.net.Ggml;
 
 namespace Gpb.VoiceTranscription.Services
 {
     public class WhisperTranscriptionService : IDisposable
     {
+        #region Fields
+
         private WhisperFactory? _factory;
         private readonly string _modelPath;
         private readonly string _language;
         private const int ChunkDurationSeconds = 300; // 5 минут на чанк для оптимизации больших файлов
 
+        #endregion
+
+        #region Events
+
         public event Action<string>? ProgressChanged;
-        public event Action<float>? ProgressPercentChanged; // ✅ float вместо WhisperProgress
+        public event Action<float>? ProgressPercentChanged;
+
+        #endregion
+
+        #region ctor
 
         public WhisperTranscriptionService(string modelPath, string language = "auto")
         {
@@ -26,14 +36,18 @@ namespace Gpb.VoiceTranscription.Services
             _language = language;
         }
 
+        #endregion
+
+        #region Methods
+
         public async Task<bool> InitializeAsync()
         {
             try
             {
                 if (!File.Exists(_modelPath))
                 {
-                    ProgressChanged?.Invoke("📥 Модель не найдена. Начинаю загрузку...");
-                    await DownloadModelAsync(_modelPath, GgmlType.Small);
+                    ProgressChanged?.Invoke("📥 Модель не найдена");
+                    return false;
                 }
 
                 _factory = WhisperFactory.FromPath(_modelPath);
@@ -50,7 +64,7 @@ namespace Gpb.VoiceTranscription.Services
         public async Task<TranscriptionResult> TranscribeAsync(
             string wavFilePath,
             string modelName = "small",
-            bool useChunking = true,
+            bool useChunkingForLargeSize = true,
             CancellationToken cancellationToken = default)
         {
             if (_factory == null)
@@ -67,9 +81,9 @@ namespace Gpb.VoiceTranscription.Services
             };
 
             // Проверяем длительность файла для оптимизации обработки больших файлов
-            var duration = AudioConverter.GetAudioDuration(wavFilePath);
+            var duration = AudioConverterHelper.GetAudioDuration(wavFilePath);
 
-            if (useChunking && duration.TotalMinutes > 10)
+            if (useChunkingForLargeSize && duration.TotalMinutes > 10)
             {
                 // Для больших файлов используем чанковую обработку
                 ProgressChanged?.Invoke($"⏱️ Длительность файла: {duration.TotalMinutes:F1} мин. Использую чанковую обработку...");
@@ -89,15 +103,19 @@ namespace Gpb.VoiceTranscription.Services
             using var fileStream = File.OpenRead(wavFilePath);
 
             // ✅ Асинхронная итерация по сегментам
+            var rawSegments = new List<TranscriptionSegment>();
             await foreach (var segment in processor.ProcessAsync(fileStream, cancellationToken))
             {
-                result.Segments.Add(new TranscriptionSegment
+                rawSegments.Add(new TranscriptionSegment
                 {
                     Start = segment.Start,
                     End = segment.End,
                     Text = segment.Text.Trim()
                 });
             }
+
+            // Объединяем короткие сегменты в полноценные предложения
+            result.Segments = MergeShortSegments(rawSegments);
 
             result.CompletedAt = DateTime.UtcNow;
             return result;
@@ -119,7 +137,7 @@ namespace Gpb.VoiceTranscription.Services
             {
                 // Разбиваем файл на чанки по 5 минут
                 ProgressChanged?.Invoke($"🔪 Разбиение файла на чанки по {ChunkDurationSeconds / 60} мин...");
-                chunkPaths = await AudioConverter.SplitAudioIntoChunksAsync(wavFilePath, ChunkDurationSeconds);
+                chunkPaths = await AudioConverterHelper.SplitAudioIntoChunksAsync(wavFilePath, ChunkDurationSeconds);
 
                 ProgressChanged?.Invoke($"📊 Найдено {chunkPaths.Count} чанков. Начинаю обработку...");
 
@@ -128,7 +146,7 @@ namespace Gpb.VoiceTranscription.Services
                 foreach (var chunkPath in chunkPaths)
                 {
                     if (cancellationToken.IsCancellationRequested)
-                        break;
+                        throw new TaskCanceledException();
 
                     ProgressChanged?.Invoke($"🎙️ Обработка чанка {processedChunks + 1}/{chunkPaths.Count}...");
 
@@ -137,7 +155,7 @@ namespace Gpb.VoiceTranscription.Services
                         .WithProgressHandler(progress =>
                         {
                             // Общий прогресс с учётом текущего чанка
-                            var overallProgress = (processedChunks + progress) / chunkPaths.Count;
+                            var overallProgress = (100 * processedChunks + progress) / chunkPaths.Count;
                             ProgressPercentChanged?.Invoke(overallProgress);
                         })
                         .Build();
@@ -146,6 +164,9 @@ namespace Gpb.VoiceTranscription.Services
 
                     await foreach (var segment in processor.ProcessAsync(fileStream, cancellationToken))
                     {
+                        if (cancellationToken.IsCancellationRequested)
+                            throw new TaskCanceledException();
+
                         // Корректируем таймкоды относительно начала исходного файла
                         var adjustedStart = globalStartTime + TimeSpan.FromMilliseconds(segment.Start.TotalMilliseconds);
                         var adjustedEnd = globalStartTime + TimeSpan.FromMilliseconds(segment.End.TotalMilliseconds);
@@ -160,10 +181,6 @@ namespace Gpb.VoiceTranscription.Services
 
                     processedChunks++;
                     globalStartTime += TimeSpan.FromSeconds(ChunkDurationSeconds);
-
-                    // Удаляем временный файл чанка
-                    if (File.Exists(chunkPath))
-                        File.Delete(chunkPath);
                 }
 
                 ProgressChanged?.Invoke($"✅ Обработано {processedChunks} чанков");
@@ -189,23 +206,79 @@ namespace Gpb.VoiceTranscription.Services
                 DetectedLanguage = _language,
                 StartedAt = DateTime.UtcNow,
                 CompletedAt = DateTime.UtcNow,
-                Segments = allSegments.OrderBy(s => s.Start).ToList()
+                Segments = MergeShortSegments(allSegments.OrderBy(s => s.Start).ToList())
             };
         }
 
-        public static async Task DownloadModelAsync(string fileName, GgmlType ggmlType)
+        /// <summary>
+        /// Объединяет короткие сегменты в более длинные предложения.
+        /// Whisper по умолчанию разбивает текст на сегменты 1-5 секунд, что приводит к разрыву предложений.
+        /// Этот метод объединяет сегменты, если:
+        /// - Они идут подряд (без больших пауз)
+        /// - Общий размер объединённого текста не превышает разумный предел
+        /// - Предыдущий сегмент не заканчивается на точку/вопрос/восклицание
+        /// </summary>
+        private List<TranscriptionSegment> MergeShortSegments(List<TranscriptionSegment> segments)
         {
-            // ✅ Прямой вызов статического метода
-            using var modelStream = await WhisperGgmlDownloader.GetGgmlModelAsync(ggmlType);
+            if (segments.Count == 0)
+                return segments;
 
-            // File.Create безопаснее: создаёт файл заново или перезаписывает
-            using var fileWriter = File.Create(fileName);
-            await modelStream.CopyToAsync(fileWriter);
+            var mergedSegments = new List<TranscriptionSegment>();
+            var currentSegment = segments[0];
+
+            // Максимальная длительность сегмента в секундах (объединяем до ~15 секунд)
+            const double maxSegmentDuration = 15.0;
+            // Максимальная пауза между сегментами для объединения (в миллисекундах)
+            const long maxPauseMs = 800;
+
+            for (int i = 1; i < segments.Count; i++)
+            {
+                var nextSegment = segments[i];
+                var pauseMs = (nextSegment.Start - currentSegment.End).TotalMilliseconds;
+                var combinedDuration = (nextSegment.End - currentSegment.Start).TotalSeconds;
+
+                // Проверяем, можно ли объединить сегменты
+                bool shouldMerge =
+                    pauseMs <= maxPauseMs &&  // Пауза небольшая
+                    combinedDuration <= maxSegmentDuration &&  // Общая длительность в пределах
+                    !currentSegment.Text.EndsWith(".") &&
+                    !currentSegment.Text.EndsWith("?") &&
+                    !currentSegment.Text.EndsWith("!") &&
+                    !currentSegment.Text.EndsWith("…");
+
+                if (shouldMerge)
+                {
+                    // Объединяем сегменты
+                    currentSegment = new TranscriptionSegment
+                    {
+                        Start = currentSegment.Start,
+                        End = nextSegment.End,
+                        Text = currentSegment.Text + " " + nextSegment.Text
+                    };
+                }
+                else
+                {
+                    // Сохраняем текущий сегмент и начинаем новый
+                    mergedSegments.Add(currentSegment);
+                    currentSegment = nextSegment;
+                }
+            }
+
+            // Добавляем последний сегмент
+            mergedSegments.Add(currentSegment);
+
+            return mergedSegments;
         }
+
+        #endregion
+
+        #region Dispose
 
         public void Dispose()
         {
             _factory?.Dispose();
         }
+
+        #endregion
     }
 }

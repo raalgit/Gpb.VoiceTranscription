@@ -10,20 +10,16 @@
 
 	<ItemGroup>
 		<!-- Основная библиотека -->
-		<PackageReference Include="Whisper.net" Version="1.7.3" />
+		<PackageReference Include="Whisper.net" Version="1.9.0" />
 
 		<!-- Рантайм для CPU (или AllRuntimes для всех платформ) -->
-		<PackageReference Include="Whisper.net.Runtime" Version="1.7.3" />
+		<PackageReference Include="Whisper.net.Runtime" Version="1.9.0" />
 
 		<!-- MVVM Toolkit для CommunityToolkit.Mvvm -->
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
 
 		<!-- Опционально: для конвертации аудиоформатов -->
 		<PackageReference Include="NAudio" Version="2.2.1" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <Folder Include="Assets\Models\" />
 	</ItemGroup>
 
 </Project>
