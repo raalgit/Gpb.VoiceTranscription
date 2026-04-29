@@ -6,6 +6,7 @@ using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -77,8 +78,8 @@ namespace Gpb.VoiceTranscription.ViewModels
                 new WhisperModelItem { Name = "Base", Type = GgmlType.Base, FileName = "ggml-base.bin", Description = "Быстрая, среднее качество" },
                 new WhisperModelItem { Name = "Small", Type = GgmlType.Small, FileName = "ggml-small.bin", Description = "Баланс скорости и качества" },
                 new WhisperModelItem { Name = "Medium", Type = GgmlType.Medium, FileName = "ggml-medium.bin", Description = "Высокое качество, медленнее" },
-                new WhisperModelItem { Name = "Large-v1", Type = GgmlType.LargeV1, FileName = "ggml-large-v1.bin", Description = "Очень высокое качество" },
-                new WhisperModelItem { Name = "Large-v2", Type = GgmlType.LargeV2, FileName = "ggml-large-v2.bin", Description = "Очень высокое качество" },
+                new WhisperModelItem { Name = "Large-v1", Type = GgmlType.LargeV1, FileName = "ggml-large-v1.bin", Description = "Очень высокое качество 1" },
+                new WhisperModelItem { Name = "Large-v2", Type = GgmlType.LargeV2, FileName = "ggml-large-v2.bin", Description = "Очень высокое качество 2" },
                 new WhisperModelItem { Name = "Large-v3", Type = GgmlType.LargeV3, FileName = "ggml-large-v3.bin", Description = "Лучшее качество" }
             };
 
@@ -90,7 +91,7 @@ namespace Gpb.VoiceTranscription.ViewModels
             }
 
             AvailableModels = models;
-            
+
             // Выбираем первую скачанную модель или первую в списке
             SelectedModel = AvailableModels.FirstOrDefault(m => m.IsDownloaded) ?? AvailableModels.First();
         }
@@ -207,6 +208,7 @@ namespace Gpb.VoiceTranscription.ViewModels
                 await WhisperTranscriptionService.DownloadModelAsync(modelPath, model.Type);
                 
                 model.IsDownloaded = true;
+                AvailableModels = AvailableModels;
                 StatusMessage = $"✅ Модель {model.Name} скачана";
             }
             catch (Exception ex)

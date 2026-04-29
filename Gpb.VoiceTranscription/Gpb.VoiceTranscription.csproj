@@ -24,7 +24,6 @@
 
 	<ItemGroup>
 	  <Folder Include="Assets\Models\" />
-	  <Folder Include="Converters\" />
 	</ItemGroup>
 
 </Project>
