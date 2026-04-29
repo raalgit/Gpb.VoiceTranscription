@@ -193,7 +193,7 @@ namespace Gpb.VoiceTranscription.Services
             };
         }
 
-        private static async Task DownloadModelAsync(string fileName, GgmlType ggmlType)
+        public static async Task DownloadModelAsync(string fileName, GgmlType ggmlType)
         {
             // ✅ Прямой вызов статического метода
             using var modelStream = await WhisperGgmlDownloader.GetGgmlModelAsync(ggmlType);
