@@ -11,12 +11,14 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using Whisper.net.Ggml;
 
 namespace Gpb.VoiceTranscription.ViewModels
 {
     public partial class MainViewModel : ObservableObject
     {
-        private readonly WhisperTranscriptionService _transcriptionService;
+        private readonly string _modelsDirectory;
+        private WhisperTranscriptionService? _transcriptionService;
         private readonly AudioRecordingService _recordingService;
         private CancellationTokenSource? _cts;
 
@@ -31,12 +33,17 @@ namespace Gpb.VoiceTranscription.ViewModels
         [ObservableProperty] private string? _selectedLoopbackDeviceId;
         [ObservableProperty] private List<AudioDeviceItem> _availableDevices = new();
         [ObservableProperty] private bool _useChunkingForLargeFiles = true; // ✅ По умолчанию включена чанковая обработка
+        [ObservableProperty] private List<WhisperModelItem> _availableModels = new();
+        [ObservableProperty] private WhisperModelItem? _selectedModel;
+        [ObservableProperty] private bool _isDownloadingModel;
 
         public bool HasResult => !string.IsNullOrEmpty(TranscriptionResult);
 
-        public MainViewModel(string modelPath)
+        public MainViewModel()
         {
-            _transcriptionService = new WhisperTranscriptionService(modelPath);
+            _modelsDirectory = Path.Combine(Environment.CurrentDirectory, "Assets", "Models");
+            Directory.CreateDirectory(_modelsDirectory);
+            
             _recordingService = new AudioRecordingService();
 
             // Подписка на события сервиса записи
@@ -53,7 +60,39 @@ namespace Gpb.VoiceTranscription.ViewModels
                 SelectedLoopbackDeviceId = AvailableDevices[0].DeviceId;
             }
 
+            // Инициализация списка моделей
+            InitializeModelsList();
+            
             _ = InitializeAsync();
+        }
+
+        /// <summary>
+        /// Инициализация списка доступных моделей Whisper
+        /// </summary>
+        private void InitializeModelsList()
+        {
+            var models = new List<WhisperModelItem>
+            {
+                new WhisperModelItem { Name = "Tiny", Type = GgmlType.Tiny, FileName = "ggml-tiny.bin", Description = "Самая быстрая, низкое качество" },
+                new WhisperModelItem { Name = "Base", Type = GgmlType.Base, FileName = "ggml-base.bin", Description = "Быстрая, среднее качество" },
+                new WhisperModelItem { Name = "Small", Type = GgmlType.Small, FileName = "ggml-small.bin", Description = "Баланс скорости и качества" },
+                new WhisperModelItem { Name = "Medium", Type = GgmlType.Medium, FileName = "ggml-medium.bin", Description = "Высокое качество, медленнее" },
+                new WhisperModelItem { Name = "Large-v1", Type = GgmlType.LargeV1, FileName = "ggml-large-v1.bin", Description = "Очень высокое качество" },
+                new WhisperModelItem { Name = "Large-v2", Type = GgmlType.LargeV2, FileName = "ggml-large-v2.bin", Description = "Очень высокое качество" },
+                new WhisperModelItem { Name = "Large-v3", Type = GgmlType.LargeV3, FileName = "ggml-large-v3.bin", Description = "Лучшее качество" }
+            };
+
+            // Проверяем, какие модели уже скачаны
+            foreach (var model in models)
+            {
+                var modelPath = Path.Combine(_modelsDirectory, model.FileName);
+                model.IsDownloaded = File.Exists(modelPath);
+            }
+
+            AvailableModels = models;
+            
+            // Выбираем первую скачанную модель или первую в списке
+            SelectedModel = AvailableModels.FirstOrDefault(m => m.IsDownloaded) ?? AvailableModels.First();
         }
 
         /// <summary>
@@ -117,6 +156,29 @@ namespace Gpb.VoiceTranscription.ViewModels
 
         private async Task InitializeAsync()
         {
+            await LoadSelectedModelAsync();
+        }
+
+        /// <summary>
+        /// Загрузка выбранной модели
+        /// </summary>
+        private async Task LoadSelectedModelAsync()
+        {
+            if (SelectedModel == null)
+                return;
+
+            var modelPath = Path.Combine(_modelsDirectory, SelectedModel.FileName);
+            
+            // Если модель не скачана, скачиваем её
+            if (!SelectedModel.IsDownloaded)
+            {
+                await DownloadModelAsync(SelectedModel);
+            }
+
+            // Создаём сервис транскрибации
+            _transcriptionService?.Dispose();
+            _transcriptionService = new WhisperTranscriptionService(modelPath);
+
             StatusMessage = "⏳ Загрузка модели...";
 
             // Подписываемся на события прогресса
@@ -129,7 +191,37 @@ namespace Gpb.VoiceTranscription.ViewModels
             StatusMessage = success ? "✅ Готов к работе" : "❌ Ошибка загрузки модели";
         }
 
-        // ✅ Автоматически генерирует RelayCommand
+        /// <summary>
+        /// Скачивание модели
+        /// </summary>
+        private async Task DownloadModelAsync(WhisperModelItem model)
+        {
+            IsDownloadingModel = true;
+            IsProcessing = true;
+            StatusMessage = $"📥 Скачивание модели {model.Name}...";
+
+            try
+            {
+                var modelPath = Path.Combine(_modelsDirectory, model.FileName);
+                
+                await WhisperTranscriptionService.DownloadModelAsync(modelPath, model.Type);
+                
+                model.IsDownloaded = true;
+                StatusMessage = $"✅ Модель {model.Name} скачана";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"❌ Ошибка скачивания модели: {ex.Message}";
+                MessageBox.Show($"Не удалось скачать модель {model.Name}: {ex.Message}", 
+                    "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsDownloadingModel = false;
+                IsProcessing = false;
+            }
+        }
+
         [RelayCommand]
         private void SelectFile()
         {
@@ -141,11 +233,11 @@ namespace Gpb.VoiceTranscription.ViewModels
                 SelectedFilePath = dialog.FileName;
         }
 
-        // ✅ Автоматически генерирует AsyncRelayCommand с блокировкой параллельного запуска
-        [RelayCommand(AllowConcurrentExecutions = false)]
+        [RelayCommand(CanExecute = nameof(IsModelReady))]
         private async Task StartTranscriptionAsync()
         {
-            if (string.IsNullOrEmpty(SelectedFilePath)) return;
+            if (string.IsNullOrEmpty(SelectedFilePath) || _transcriptionService == null || SelectedModel == null) 
+                return;
 
             // Проверка формата файла
             if (!AudioConverter.IsSupportedAudioFormat(SelectedFilePath))
@@ -190,7 +282,7 @@ namespace Gpb.VoiceTranscription.ViewModels
 
                 var transcription = await _transcriptionService.TranscribeAsync(
                     processPath,
-                    modelName: "small",
+                    modelName: SelectedModel.Name,
                     useChunking: UseChunkingForLargeFiles,
                     _cts.Token);
 
@@ -218,6 +310,11 @@ namespace Gpb.VoiceTranscription.ViewModels
                 _cts = null;
             }
         }
+
+        /// <summary>
+        /// Проверка готовности модели к транскрибации
+        /// </summary>
+        private bool IsModelReady => SelectedModel?.IsDownloaded == true && !IsDownloadingModel && _transcriptionService != null;
 
         [RelayCommand(CanExecute = nameof(IsProcessing))]
         private void CancelTranscription() => _cts?.Cancel();
@@ -286,6 +383,39 @@ namespace Gpb.VoiceTranscription.ViewModels
             finally
             {
                 IsProcessing = false;
+            }
+        }
+
+        /// <summary>
+        /// Обработка изменения свойства SelectedModel
+        /// </summary>
+        partial void OnSelectedModelChanged(WhisperModelItem? value)
+        {
+            if (value != null && !IsDownloadingModel)
+            {
+                _ = ModelSelectionChangedAsync();
+            }
+        }
+
+        /// <summary>
+        /// Обработка выбора модели из ComboBox
+        /// </summary>
+        [RelayCommand]
+        private async Task ModelSelectionChangedAsync()
+        {
+            if (SelectedModel == null)
+                return;
+
+            // Если модель не скачана, запускаем скачивание
+            if (!SelectedModel.IsDownloaded)
+            {
+                await DownloadModelAsync(SelectedModel);
+            }
+
+            // После скачивания (или если модель уже была скачана) загружаем её
+            if (SelectedModel.IsDownloaded)
+            {
+                await LoadSelectedModelAsync();
             }
         }
 

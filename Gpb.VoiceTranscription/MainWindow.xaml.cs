@@ -27,14 +27,7 @@ namespace Gpb.VoiceTranscription
         {
             InitializeComponent();
 
-            // Путь к модели (скачается автоматически при первом запуске)
-            var modelPath = Path.Combine(
-                Environment.CurrentDirectory,
-                "Assets", "Models", "ggml-small.bin");
-
-            Directory.CreateDirectory(Path.GetDirectoryName(modelPath)!);
-
-            _viewModel = new MainViewModel(modelPath);
+            _viewModel = new MainViewModel();
             DataContext = _viewModel;
 
             // Показываем результат при его появлении
