@@ -25,7 +25,7 @@ namespace Gpb.VoiceTranscription.Models
         /// <summary>
         /// Использованная модель Whisper (tiny/base/small/medium/large)
         /// </summary>
-        public string ModelName { get; set; } = "base";
+        public string ModelName { get; set; } = "small";
 
         /// <summary>
         /// Дата и время начала транскрибации

@@ -30,7 +30,7 @@ namespace Gpb.VoiceTranscription
             // Путь к модели (скачается автоматически при первом запуске)
             var modelPath = Path.Combine(
                 Environment.CurrentDirectory,
-                "Assets", "Models", "ggml-base.bin");
+                "Assets", "Models", "ggml-small.bin");
 
             Directory.CreateDirectory(Path.GetDirectoryName(modelPath)!);
 

@@ -30,6 +30,7 @@ namespace Gpb.VoiceTranscription.ViewModels
         [ObservableProperty] private int _selectedDeviceIndex;
         [ObservableProperty] private string? _selectedLoopbackDeviceId;
         [ObservableProperty] private List<AudioDeviceItem> _availableDevices = new();
+        [ObservableProperty] private bool _useChunkingForLargeFiles = true; // ✅ По умолчанию включена чанковая обработка
 
         public bool HasResult => !string.IsNullOrEmpty(TranscriptionResult);
 
@@ -189,7 +190,8 @@ namespace Gpb.VoiceTranscription.ViewModels
 
                 var transcription = await _transcriptionService.TranscribeAsync(
                     processPath,
-                    modelName: "base",
+                    modelName: "small",
+                    useChunking: UseChunkingForLargeFiles,
                     _cts.Token);
 
                 TranscriptionResult = transcription.ToMarkdown();
