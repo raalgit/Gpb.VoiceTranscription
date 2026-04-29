@@ -20,6 +20,7 @@ namespace Gpb.VoiceTranscription.ViewModels
         private WhisperTranscriptionService? _transcriptionService;
         private readonly AudioRecordingService _recordingService;
         private CancellationTokenSource? _cts;
+        private Models.TranscriptionResult? _currentTranscription; // ✅ Поле для хранения результата текущей транскрипции
 
         #endregion
 

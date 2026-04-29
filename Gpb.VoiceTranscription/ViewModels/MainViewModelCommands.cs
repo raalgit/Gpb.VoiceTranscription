@@ -48,7 +48,6 @@ namespace Gpb.VoiceTranscription.ViewModels
 
             string processPath = SelectedFilePath;
             string? tempFilePath = null;
-            Models.TranscriptionResult? transcription = null;
 
             try
             {
@@ -75,29 +74,29 @@ namespace Gpb.VoiceTranscription.ViewModels
                 StatusMessage = "🎙️ Начинаю транскрибацию...";
 
                 await LoadSelectedModelAsync();
-                transcription = await _transcriptionService.TranscribeAsync(
+                _currentTranscription = await _transcriptionService.TranscribeAsync(
                     processPath,
                     modelName: SelectedModel.Name,
                     useChunkingForLargeSize: UseChunkingForLargeFiles,
                     _cts.Token);
 
-                TranscriptionResult = transcription.ToMarkdown(includeSummary: false);
+                TranscriptionResult = _currentTranscription.ToMarkdown(includeSummary: false);
                 
                 // ✅ Суммаризация после транскрибации (если включена и сервис доступен)
                 if (EnableSummarization && _summarizationService != null && _summarizationService.IsAvailable)
                 {
-                    await SummarizeTranscriptionAsync(transcription.PlainText);
+                    await SummarizeTranscriptionAsync(_currentTranscription.PlainText);
                     // Обновляем результат с суммаризацией
-                    TranscriptionResult = transcription.ToMarkdown(includeSummary: true);
+                    TranscriptionResult = _currentTranscription.ToMarkdown(includeSummary: true);
                 }
                 else if (EnableSummarization && (_summarizationService == null || !_summarizationService.IsAvailable))
                 {
                     StatusMessage = "⚠️ Суммаризация включена, но API ключ не настроен. Пропускаю суммаризацию.";
                 }
 
-                StatusMessage = $"✅ Готово! {transcription.Segments.Count} сегментов, " +
-                               $"{transcription.ProcessingTimeMs / 1000:F1} сек." +
-                               (transcription.SummarizedAt.HasValue ? $" | Суммаризация: {transcription.SummarizationTimeMs / 1000:F1} сек." : "");
+                StatusMessage = $"✅ Готово! {_currentTranscription.Segments.Count} сегментов, " +
+                               $"{_currentTranscription.ProcessingTimeMs / 1000:F1} сек." +
+                               (_currentTranscription.SummarizedAt.HasValue ? $" | Суммаризация: {_currentTranscription.SummarizationTimeMs / 1000:F1} сек." : "");
             }
             catch (OperationCanceledException)
             {
@@ -136,10 +135,10 @@ namespace Gpb.VoiceTranscription.ViewModels
                 var summary = await _summarizationService.SummarizeAsync(transcriptionText, _cts!.Token);
                 
                 // Обновляем результат в модели транскрипции
-                if (transcription != null)
+                if (_currentTranscription != null)
                 {
-                    transcription.Summary = summary;
-                    transcription.SummarizedAt = DateTime.UtcNow;
+                    _currentTranscription.Summary = summary;
+                    _currentTranscription.SummarizedAt = DateTime.UtcNow;
                 }
                 
                 // Сохраняем результат суммаризации (для доступа через binding)

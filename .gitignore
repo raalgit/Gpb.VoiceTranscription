@@ -1,37 +1,59 @@
 ```
-# Build artifacts
-bin/
-obj/
-*.dll
+# Compiled and build artifacts
 *.exe
+*.dll
 *.pdb
-*.userprefs
+*.obj
+*.lib
+*.so
+*.dylib
+*.class
+*.pyc
+__pycache__/
+*.o
+*.a
+*.out
 
 # Dependencies
-packages/
 node_modules/
-.nuget/
-
-# Logs
-*.log
-
-# Environment
+venv/
+.venv/
 .env
 .env.local
-*.env.*
+.env.*
+
+# Build outputs
+bin/
+obj/
+Debug/
+Release/
+build/
+dist/
+target/
+.gradle/
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+*.swo
 
 # Editors
-.vs/
-.vshistory/
+.vscode/
 .idea/
+*.userprefs
 *.user
-*.suo
-*.userosscache
-*.sln.docstates
 
-# OS generated files
+# OS
 .DS_Store
 Thumbs.db
-ehthumbs.db
-Icon?
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Cache
+.mypy_cache/
+.pytest_cache/
 ```
