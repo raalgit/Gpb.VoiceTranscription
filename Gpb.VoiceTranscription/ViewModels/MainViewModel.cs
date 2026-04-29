@@ -41,10 +41,13 @@ namespace Gpb.VoiceTranscription.ViewModels
         [ObservableProperty] private bool _canTranscribe;
         [ObservableProperty] private bool _autoConvertAudio = true; // ✅ По умолчанию включено
         [ObservableProperty] private bool _useChunkingForLargeFiles = true; // ✅ По умолчанию включена чанковая обработка
+        [ObservableProperty] private bool _enableSummarization = AppSettings.EnableSummarization; // ✅ Суммаризация по умолчанию из конфига
         [ObservableProperty] private bool _isDownloadingModel;
+        [ObservableProperty] private bool _isSummarizing;
         [ObservableProperty] private string _statusMessage = "🟡 Ожидание...";
         [ObservableProperty] private string _selectedFilePath = string.Empty;
         [ObservableProperty] private string _transcriptionResult = string.Empty;
+        [ObservableProperty] private string? _summaryResult = string.Empty;
         [ObservableProperty] private string? _selectedLoopbackDeviceId;
         [ObservableProperty] private double _progressValue;
         [ObservableProperty] private int _downloadProgress = 0;
@@ -53,6 +56,8 @@ namespace Gpb.VoiceTranscription.ViewModels
         [ObservableProperty] private List<WhisperModelItem> _availableModels = [];
         [ObservableProperty] private WhisperModelItem? _selectedModel;
 
+        private readonly ISummarizationService? _summarizationService;
+
         #endregion
 
         #region Ctor
@@ -60,6 +65,12 @@ namespace Gpb.VoiceTranscription.ViewModels
         public MainViewModel()
         {   
             _recordingService = new AudioRecordingService();
+            
+            // Инициализация сервиса суммаризации (если настроен API ключ)
+            if (!string.IsNullOrEmpty(AppSettings.SummarizationApiKey))
+            {
+                _summarizationService = new SummarizationService();
+            }
 
             // Подписка на события сервиса записи
             _recordingService.RecordingStateChanged += isRecording => 
@@ -259,6 +270,7 @@ namespace Gpb.VoiceTranscription.ViewModels
         public void Dispose()
         {
             _transcriptionService?.Dispose();
+            (_summarizationService as IDisposable)?.Dispose();
             _recordingService?.Dispose();
             _cts?.Dispose();
         }

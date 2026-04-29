@@ -1,71 +1,37 @@
-```gitignore
-# Compiled and build artifacts
-*.exe
-*.dll
-*.pdb
-*.obj
-*.o
-*.out
-*.class
-*.pyc
-__pycache__/
-*.pyo
-*.pyd
-*.so
-*.a
-*.lib
-*.dylib
-*.bin
-*.dat
-
-# Dependencies
-node_modules/
-venv/
-.venv/
-.env
-.env.local
-.env.*
-
-# Build directories
-build/
-dist/
-target/
-release/
-debug/
-x64/
-x86/
+```
+# Build artifacts
 bin/
 obj/
+*.dll
+*.exe
+*.pdb
+*.userprefs
 
-# IDE specific
-.vs/
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-Thumbs.db
+# Dependencies
+packages/
+node_modules/
+.nuget/
 
 # Logs
 *.log
-*.tmp
 
-# Test and coverage
-.coverage
-coverage/
-htmlcov/
-.pytest_cache/
-.mypy_cache/
-.nyc_output/
-coverage-final.json
+# Environment
+.env
+.env.local
+*.env.*
 
-# OS generated
+# Editors
+.vs/
+.vshistory/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# OS generated files
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
+ehthumbs.db
+Icon?
 ```
