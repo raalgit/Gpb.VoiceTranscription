@@ -339,6 +339,12 @@
                   Grid.Row="2" Margin="0,30,0,5"
                   ToolTip="Разбивает файлы длительностью более 10 минут на части для стабильной обработки"/>
 
+        <CheckBox Content="📝 Суммаризировать текст после транскрибации (требуется API ключ)"
+                  IsChecked="{Binding EnableSummarization}"
+                  Foreground="#d4d4d4"
+                  Grid.Row="2" Margin="0,55,0,5"
+                  ToolTip="Создаёт краткое резюме совещания с помощью AI. Требуется настроить SummarizationApiKey в конфиге."/>
+
         <!-- Прогресс и статус -->
         <StackPanel Grid.Row="3" Margin="0,0,0,15">
             <!-- Пример привязки -->
@@ -350,6 +356,14 @@
             <TextBlock Visibility="{Binding IsDownloadingModel, Converter={StaticResource BoolToVis}, ConverterParameter=Inverse}"
                Text="{Binding StatusMessage}" 
                Foreground="#888888" 
+               FontWeight="Bold"
+               TextAlignment="Center"
+               Margin="0,5,0,0"/>
+               
+            <!-- Индикатор суммаризации -->
+            <TextBlock Visibility="{Binding IsSummarizing, Converter={StaticResource BoolToVis}}"
+               Text="📝 Выполняется суммаризация..." 
+               Foreground="#FFA500" 
                FontWeight="Bold"
                TextAlignment="Center"
                Margin="0,5,0,0"/>

@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.Input;
 using Gpb.VoiceTranscription.Helpers;
+using Gpb.VoiceTranscription.Services;
 using System;
 using System.IO;
 using System.Linq;
@@ -42,6 +43,7 @@ namespace Gpb.VoiceTranscription.ViewModels
             IsProcessing = true;
             _cts = new CancellationTokenSource();
             TranscriptionResult = string.Empty;
+            SummaryResult = string.Empty;
             ProgressValue = 0;
 
             string processPath = SelectedFilePath;
@@ -72,15 +74,29 @@ namespace Gpb.VoiceTranscription.ViewModels
                 StatusMessage = "🎙️ Начинаю транскрибацию...";
 
                 await LoadSelectedModelAsync();
-                var transcription = await _transcriptionService.TranscribeAsync(
+                _currentTranscription = await _transcriptionService.TranscribeAsync(
                     processPath,
                     modelName: SelectedModel.Name,
                     useChunkingForLargeSize: UseChunkingForLargeFiles,
                     _cts.Token);
 
-                TranscriptionResult = transcription.ToMarkdown();
-                StatusMessage = $"✅ Готово! {transcription.Segments.Count} сегментов, " +
-                               $"{transcription.ProcessingTimeMs / 1000:F1} сек.";
+                TranscriptionResult = _currentTranscription.ToMarkdown(includeSummary: false);
+                
+                // ✅ Суммаризация после транскрибации (если включена и сервис доступен)
+                if (EnableSummarization && _summarizationService != null && _summarizationService.IsAvailable)
+                {
+                    await SummarizeTranscriptionAsync(_currentTranscription.PlainText);
+                    // Обновляем результат с суммаризацией
+                    TranscriptionResult = _currentTranscription.ToMarkdown(includeSummary: true);
+                }
+                else if (EnableSummarization && (_summarizationService == null || !_summarizationService.IsAvailable))
+                {
+                    StatusMessage = "⚠️ Суммаризация включена, но API ключ не настроен. Пропускаю суммаризацию.";
+                }
+
+                StatusMessage = $"✅ Готово! {_currentTranscription.Segments.Count} сегментов, " +
+                               $"{_currentTranscription.ProcessingTimeMs / 1000:F1} сек." +
+                               (_currentTranscription.SummarizedAt.HasValue ? $" | Суммаризация: {_currentTranscription.SummarizationTimeMs / 1000:F1} сек." : "");
             }
             catch (OperationCanceledException)
             {
@@ -100,6 +116,48 @@ namespace Gpb.VoiceTranscription.ViewModels
                 IsProcessing = false;
                 _cts?.Dispose();
                 _cts = null;
+            }
+        }
+
+        /// <summary>
+        /// Суммаризация текста транскрибации
+        /// </summary>
+        private async Task SummarizeTranscriptionAsync(string transcriptionText)
+        {
+            if (_summarizationService == null || !_summarizationService.IsAvailable)
+                return;
+
+            try
+            {
+                IsSummarizing = true;
+                StatusMessage = "📝 Выполняю суммаризацию...";
+
+                var summary = await _summarizationService.SummarizeAsync(transcriptionText, _cts!.Token);
+                
+                // Обновляем результат в модели транскрипции
+                if (_currentTranscription != null)
+                {
+                    _currentTranscription.Summary = summary;
+                    _currentTranscription.SummarizedAt = DateTime.UtcNow;
+                }
+                
+                // Сохраняем результат суммаризации (для доступа через binding)
+                SummaryResult = summary;
+                
+                StatusMessage = "✅ Суммаризация завершена";
+            }
+            catch (OperationCanceledException)
+            {
+                StatusMessage = "⚠️ Суммаризация отменена";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"⚠️ Ошибка суммаризации: {ex.Message}";
+                // Не прерываем основной процесс, суммаризация опциональна
+            }
+            finally
+            {
+                IsSummarizing = false;
             }
         }
 

@@ -38,10 +38,26 @@ namespace Gpb.VoiceTranscription.Models
         public DateTime CompletedAt { get; set; }
 
         /// <summary>
+        /// Дата и время завершения суммаризации
+        /// </summary>
+        public DateTime? SummarizedAt { get; set; }
+
+        /// <summary>
+        /// Суммаризированный текст (резюме совещания)
+        /// </summary>
+        public string? Summary { get; set; }
+
+        /// <summary>
         /// Общее время обработки в миллисекундах
         /// </summary>
         public double ProcessingTimeMs =>
             (CompletedAt - StartedAt).TotalMilliseconds;
+
+        /// <summary>
+        /// Время затраченное на суммаризацию в миллисекундах
+        /// </summary>
+        public double? SummarizationTimeMs =>
+            SummarizedAt.HasValue ? (SummarizedAt.Value - CompletedAt).TotalMilliseconds : null;
 
         /// <summary>
         /// Список сегментов с таймкодами и текстом
@@ -56,9 +72,9 @@ namespace Gpb.VoiceTranscription.Models
             string.Join(" ", Segments.Select(s => s.Text.Trim()));
 
         /// <summary>
-        /// Текст в формате Markdown с таймкодами
+        /// Текст в формате Markdown с таймкодами и суммаризацией
         /// </summary>
-        public string ToMarkdown()
+        public string ToMarkdown(bool includeSummary = true)
         {
             var sb = new StringBuilder();
 
@@ -69,12 +85,28 @@ namespace Gpb.VoiceTranscription.Models
             sb.AppendLine($"model: {ModelName}");
             sb.AppendLine($"processed: {StartedAt:yyyy-MM-ddTHH:mm:ssZ}");
             sb.AppendLine($"duration_ms: {ProcessingTimeMs}");
+            if (SummarizedAt.HasValue)
+            {
+                sb.AppendLine($"summarized: {SummarizedAt.Value:yyyy-MM-ddTHH:mm:ssZ}");
+                sb.AppendLine($"summarization_duration_ms: {SummarizationTimeMs}");
+            }
             sb.AppendLine("---");
             sb.AppendLine();
 
             // Заголовок
             sb.AppendLine($"# 🎙️ Транскрипция: {Path.GetFileName(SourceFilePath)}");
             sb.AppendLine();
+
+            // Суммаризация (если есть и запрошена)
+            if (includeSummary && !string.IsNullOrEmpty(Summary))
+            {
+                sb.AppendLine("## 📝 Резюме совещания");
+                sb.AppendLine();
+                sb.AppendLine(Summary);
+                sb.AppendLine();
+                sb.AppendLine("---");
+                sb.AppendLine();
+            }
 
             // Сегменты с таймкодами
             foreach (var segment in Segments)
@@ -123,11 +155,11 @@ namespace Gpb.VoiceTranscription.Models
 
             string content = format switch
             {
-                ExportFormat.Markdown => ToMarkdown(),
+                ExportFormat.Markdown => ToMarkdown(includeSummary: true),
                 ExportFormat.Srt => ToSrt(),
                 ExportFormat.Json => ToJson(),
                 ExportFormat.PlainText => PlainText,
-                _ => ToMarkdown()
+                _ => ToMarkdown(includeSummary: true)
             };
 
             Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
