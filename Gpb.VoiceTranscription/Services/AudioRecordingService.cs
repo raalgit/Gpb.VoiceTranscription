@@ -310,7 +310,7 @@ namespace Gpb.VoiceTranscription.Services
             var buffer1 = new byte[4096];
             var buffer2 = new byte[4096];
             
-            int bytesRead1, bytesRead2;
+            int bytesRead1, bytesRead2 = 0;
             
             while ((bytesRead1 = micReader.Read(buffer1, 0, buffer1.Length)) > 0 || 
                    (bytesRead2 = loopbackReader.Read(buffer2, 0, buffer2.Length)) > 0)
