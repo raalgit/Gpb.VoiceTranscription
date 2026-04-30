@@ -113,6 +113,7 @@ namespace Gpb.VoiceTranscription.ViewModels
                 if (tempFilePath != null && File.Exists(tempFilePath))
                     File.Delete(tempFilePath);
 
+                OnPropertyChanged(nameof(HasResult));
                 IsProcessing = false;
                 _cts?.Dispose();
                 _cts = null;
