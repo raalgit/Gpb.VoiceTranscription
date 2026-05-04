@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.Input;
 using Gpb.VoiceTranscription.Helpers;
+using Gpb.VoiceTranscription.Models;
 using Gpb.VoiceTranscription.Services;
 using System;
 using System.IO;
@@ -7,6 +8,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using Whisper.net.Ggml;
 
 namespace Gpb.VoiceTranscription.ViewModels
 {
@@ -154,6 +156,7 @@ namespace Gpb.VoiceTranscription.ViewModels
             catch (Exception ex)
             {
                 StatusMessage = $"⚠️ Ошибка суммаризации: {ex.Message}";
+                MessageBox.Show($"Ошибка суммаризации: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
                 // Не прерываем основной процесс, суммаризация опциональна
             }
             finally
@@ -252,6 +255,52 @@ namespace Gpb.VoiceTranscription.ViewModels
             if (SelectedModel.IsDownloaded)
             {
                 await LoadSelectedModelAsync();
+            }
+        }
+
+        /// <summary>
+        /// Добавление пользовательской модели из файловой системы
+        /// </summary>
+        [RelayCommand]
+        private async Task AddLocalModelAsync()
+        {
+            try
+            {
+                var dialog = new Microsoft.Win32.OpenFileDialog
+                {
+                    Filter = "Файлы моделей Whisper (*.bin)|*.bin|Все файлы|*.*",
+                    Title = "Выберите файл модели Whisper (.bin)"
+                };
+
+                if (dialog.ShowDialog() != true)
+                    return;
+
+                var sourceModelFilePath = dialog.FileName;
+
+                if (!File.Exists(sourceModelFilePath))
+                {
+                    MessageBox.Show("Выбранный файл не найден", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                var sourceModelFileName = new FileInfo(sourceModelFilePath).Name;
+                var modelType = ModelStorageService.GetModelType(sourceModelFileName);
+
+                var modelsFolder = ModelStorageService.GetModelsPath();
+                var targetModelFilePath = Path.Combine(modelsFolder, sourceModelFileName);
+
+                // Перемещаем файл на место только после успешной загрузки
+                File.Move(sourceModelFilePath, targetModelFilePath, overwrite: true);
+
+                await Application.Current.Dispatcher.Invoke(async () =>
+                {
+                    await InitializeModelsAsync();
+                    UpdateModelStatus(modelType, true);
+                });
+            }
+            catch (Exception e)
+            {
+                StatusMessage = $"❌ Ошибка загрузки модели";
             }
         }
         #endregion

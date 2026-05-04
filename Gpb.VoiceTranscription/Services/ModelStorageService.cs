@@ -8,6 +8,21 @@ namespace Gpb.VoiceTranscription.Services
 {
     public class ModelStorageService
     {
+        public static string GetModelsPath()
+        {
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WhisperTranscriber", "Models");
+        }
+
+        public static GgmlType GetModelType(string modelName) => modelName.ToLower() switch
+        {
+            "ggml-tiny.bin" => GgmlType.Tiny,
+            "ggml-base.bin" => GgmlType.Base,
+            "ggml-small.bin" => GgmlType.Small,
+            "ggml-medium.bin" => GgmlType.Medium,
+            "ggml-largev3.bin" => GgmlType.LargeV3,
+            _ => throw new NotImplementedException(),
+        };
+
         // Вспомогательный метод для получения пути к файлу
         public static string GetModelPath(GgmlType modelType)
         {
@@ -18,7 +33,7 @@ namespace Gpb.VoiceTranscription.Services
             // var fileName = $"ggml-${modelType.ToString().ToLower()}.q5_0.bin"; 
 
             // Для примера предположим, что модели хранятся в подпапке "Models" рядом с исполняемым файлом или в LocalApplicationData
-            var folderPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WhisperTranscriber", "Models");
+            var folderPath = GetModelsPath();
 
             if (!Directory.Exists(folderPath))
             {
